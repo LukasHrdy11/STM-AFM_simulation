@@ -1,0 +1,12 @@
+# Závislosti interaktivního nástroje (jen pro veřejné repo - v privátním
+# repu platí konvence "žádné závislosti navíc", viz CLAUDE.md).
+#
+# Instalace bez venv:
+#   pip install --user -r requirements.txt
+#
+# Verze nejsou připíchnuté schválně: nástroj nepoužívá nic okrajového a má
+# běžet i na tom, co má vyučující už nainstalované.
+numpy
+matplotlib
+ipywidgets
+notebook
