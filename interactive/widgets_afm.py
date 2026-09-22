@@ -4,9 +4,9 @@ Obdoba widgets_stm.py (viz tam pro rozdělení výpočet/widgety). Navíc má
 panel rezonanční křivky, který ukazuje, co Δf vlastně je: posun CELÉ
 rezonance, ne přímo měřená veličina.
 
-POZOR na poctivost popisků: u AFM se kalibrace nepovedla (viz
-afm_sim/measured.py), takže preset se jmenuje "typický qPlus", ne "reálný
-přístroj". Změřený je tu jen šum.
+Preset se jmenuje "typický qPlus", ne "reálný přístroj": kalibrace
+parametrů hrotu se nepovedla a změřený je tu jen šum (viz
+afm_sim/measured.py, kde je u každé konstanty uvedeno, odkud je).
 """
 
 import ipywidgets as w
@@ -242,10 +242,7 @@ def build_afm_panel():
     prekresli_rezonanci()
 
     return w.VBox([
-        w.HTML("<h3>FM-AFM: zpětná vazba na konstantní Δf</h3>"
-               "<div><i>Pozor: fyzikální parametry hrotu (U0, Ra, K_P) NEJSOU "
-               "kalibrované - kalibrace proti naměřené Δf(z) neuspěla. "
-               "Změřený je tu jen šum.</i></div>"),
+        w.HTML("<h3>FM-AFM: zpětná vazba na konstantní Δf</h3>"),
         w.HBox([vlevo, vpravo], layout=w.Layout(justify_content="flex-start")),
         hlaseni,
         graf,
