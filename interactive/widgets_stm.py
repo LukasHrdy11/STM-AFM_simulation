@@ -38,20 +38,20 @@ def build_stm_panel():
     preset = w.Dropdown(
         options=[(p["popis"], klic) for klic, p in measured.PRESETY.items()],
         value="realny", description="Preset:",
-        style={"description_width": "110px"})
+        style={"description_width": "100px"})
     regulator = w.Dropdown(options=["P", "I", "PI"], value=VYCHOZI["controller"],
                            description="Regulátor:",
-                           style={"description_width": "110px"})
+                           style={"description_width": "100px"})
     povrch = w.Dropdown(options=["step", "ramp", "MGE", "atoms"],
                         value=VYCHOZI["surface"], description="Povrch:",
-                        style={"description_width": "110px"})
+                        style={"description_width": "100px"})
 
     def posuvnik(popis, hodnota, mini, maxi, krok, jednotka=""):
         return w.FloatSlider(value=hodnota, min=mini, max=maxi, step=krok,
                              description=popis, continuous_update=False,
                              readout_format=".3f",
-                             style={"description_width": "110px"},
-                             layout=w.Layout(width="420px"))
+                             style={"description_width": "100px"},
+                             layout=w.Layout(width="360px"))
 
     t_sys = posuvnik("T_sys [µs]:", VYCHOZI["T_SYS"] * 1e6, 0.0, 500.0, 10.0)
     tau = posuvnik("tau [µs]:", VYCHOZI["tau"] * 1e6, 20.0, 2000.0, 20.0)
@@ -70,7 +70,7 @@ def build_stm_panel():
                                      ("stojící hrot", "stojici"),
                                      ("ze skenů (nejhorší)", "skeny")],
                             value=VYCHOZI["sum_mezery"], description="Šum mezery:",
-                            style={"description_width": "110px"})
+                            style={"description_width": "100px"})
     backward = w.Checkbox(value=VYCHOZI["backward"], description="zpětný průjezd",
                           indent=False)
     zpetna_vazba = w.Checkbox(value=True, description="zpětná vazba zapnutá",
@@ -85,8 +85,8 @@ def build_stm_panel():
 
     krok = w.IntSlider(value=0, min=0, max=0, description="Krok:",
                        continuous_update=False,
-                       style={"description_width": "110px"},
-                       layout=w.Layout(width="420px"))
+                       style={"description_width": "100px"},
+                       layout=w.Layout(width="360px"))
     krokovat = w.Button(description="Načíst kroky", icon="list-ol",
                         tooltip="Spustí simulaci s krokováním a nabídne "
                                 "listování mezikroky smyčky")
@@ -239,8 +239,10 @@ def build_stm_panel():
     vlevo = w.VBox([preset, regulator, povrch, sum_mezery,
                     w.HBox([sum_proudu, sum_cary]),
                     w.HBox([backward, zpetna_vazba]),
-                    w.HBox([prepocitat, zamknout, uvolnit])])
-    vpravo = w.VBox([t_sys, tau, rychlost, k_p, mira_sumu, z_fixed])
+                    w.HBox([prepocitat, zamknout, uvolnit])],
+                   layout=w.Layout(width="440px", flex="0 0 auto"))
+    vpravo = w.VBox([t_sys, tau, rychlost, k_p, mira_sumu, z_fixed],
+                    layout=w.Layout(width="420px", flex="0 0 auto"))
 
     krokovani = w.VBox([
         w.HTML("<h4>Krokování smyčky</h4>"
@@ -256,7 +258,7 @@ def build_stm_panel():
 
     return w.VBox([
         w.HTML("<h3>STM: zpětná vazba v režimu konstantního proudu</h3>"),
-        w.HBox([vlevo, vpravo]),
+        w.HBox([vlevo, vpravo], layout=w.Layout(justify_content="flex-start")),
         hlaseni,
         graf,
         w.HTML("<hr>"),

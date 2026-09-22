@@ -26,25 +26,25 @@ def build_afm_panel():
     preset = w.Dropdown(
         options=[(p["popis"], klic) for klic, p in measured.PRESETY.items()],
         value="qplus", description="Preset:",
-        style={"description_width": "120px"})
+        style={"description_width": "100px"})
     regulator = w.Dropdown(options=["P", "I", "PI"], value=VYCHOZI["controller"],
                            description="Regulátor:",
-                           style={"description_width": "120px"})
+                           style={"description_width": "100px"})
     povrch = w.Dropdown(options=["step", "ramp", "atoms", "atoms-AFM"],
                         value=VYCHOZI["surface"], description="Povrch:",
-                        style={"description_width": "120px"})
+                        style={"description_width": "100px"})
     gain_mode = w.Dropdown(
-        options=[("fixed (citlivost z pracovního bodu)", "fixed"),
-                 ("local (přepočítává se, umí hlásit nestabilitu)", "local")],
+        options=[("fixed (z pracovního bodu)", "fixed"),
+                 ("local (přepočítává se)", "local")],
         value=VYCHOZI["gain_mode"], description="Citlivost:",
-        style={"description_width": "120px"}, layout=w.Layout(width="480px"))
+        style={"description_width": "100px"}, layout=w.Layout(width="360px"))
 
     def posuvnik(popis, hodnota, mini, maxi, krok, format=".3f"):
         return w.FloatSlider(value=hodnota, min=mini, max=maxi, step=krok,
                              description=popis, continuous_update=False,
                              readout_format=format,
-                             style={"description_width": "120px"},
-                             layout=w.Layout(width="440px"))
+                             style={"description_width": "100px"},
+                             layout=w.Layout(width="340px"))
 
     d_set = posuvnik("d_set [nm]:", VYCHOZI["d_set"] * 1e9, 0.5, 2.0, 0.02)
     amplituda = posuvnik("A [nm]:", VYCHOZI["A"] * 1e9, 0.05, 1.5, 0.05)
@@ -73,8 +73,8 @@ def build_afm_panel():
     q_faktor = w.FloatLogSlider(value=5000.0, base=10, min=2, max=5.5,
                                 step=0.1, description="Q:",
                                 continuous_update=False,
-                                style={"description_width": "120px"},
-                                layout=w.Layout(width="440px"))
+                                style={"description_width": "100px"},
+                                layout=w.Layout(width="340px"))
     df_posun = posuvnik("Δf [Hz]:", -5.0, -50.0, 5.0, 0.5, format=".1f")
     graf_rezonance = w.Output()
 
@@ -223,8 +223,10 @@ def build_afm_panel():
 
     vlevo = w.VBox([preset, regulator, povrch, gain_mode,
                     w.HBox([sum_frekvence, sum_amplitudy, backward]),
-                    w.HBox([prepocitat, zamknout, uvolnit])])
-    vpravo = w.VBox([d_set, amplituda, tau, t_sys, rychlost, mira_sumu])
+                    w.HBox([prepocitat, zamknout, uvolnit])],
+                   layout=w.Layout(width="440px", flex="0 0 auto"))
+    vpravo = w.VBox([d_set, amplituda, tau, t_sys, rychlost, mira_sumu],
+                    layout=w.Layout(width="420px", flex="0 0 auto"))
 
     def prepni_d_set(_=None):
         # U řady BODOVÝCH atomů si pracovní bod určuje vypocet_afm sám
@@ -244,7 +246,7 @@ def build_afm_panel():
                "<div><i>Pozor: fyzikální parametry hrotu (U0, Ra, K_P) NEJSOU "
                "kalibrované - kalibrace proti naměřené Δf(z) neuspěla. "
                "Změřený je tu jen šum.</i></div>"),
-        w.HBox([vlevo, vpravo]),
+        w.HBox([vlevo, vpravo], layout=w.Layout(justify_content="flex-start")),
         hlaseni,
         graf,
         graf_udalost,
