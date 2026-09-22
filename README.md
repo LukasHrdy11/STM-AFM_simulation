@@ -5,21 +5,6 @@ smyčku tunelového mikroskopu (STM, režim konstantního proudu) a
 frekvenčně modulovaného AFM (qPlus) a nechává si s ní hrát — posuvníkem,
 ne editací kódu.
 
-K čemu je dobrý ve výuce:
-
-- **Regulátor není černá skříňka.** Smyčku jde krokovat a u každého kroku
-  vidět celou posloupnost: změř proud → spočti log-chybu → regulátor
-  z ní udělá příkaz → akční člen posune hrot. Regulátor neví, kde povrch
-  je; ví jen, jestli je proud větší nebo menší, než má být.
-- **Zpětná vazba zapnutá vs. vypnutá.** Jedním přepínačem se přejde do
-  režimu konstantní výšky: hrot přestane uhýbat, topografie se promítne
-  rovnou do proudu a na vyšší hraně to skončí nárazem.
-- **Kdy je šum neúnosný.** Posuvník šumu je násobek skutečně změřeného
-  šumu reálného přístroje. Dá se jím dojít do bodu, kdy regulátor ztrácí
-  stopu povrchu.
-- **Co je vlastně Δf.** U AFM se ukazuje, že Δf není měřená veličina, ale
-  posun celé rezonanční křivky cantileveru.
-
 ## Spuštění
 
 ```bash
