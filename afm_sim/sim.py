@@ -136,3 +136,91 @@ def run_loop(controller, plant, surface_fn, v, force_fn, A, k_cant, f0,
         z_tip = plant.step(y, dt)
 
     return result
+
+
+@dataclass
+class ConstantHeightResult:
+    """Výsledek skenu s VYPNUTOU zpětnou vazbou (režim konstantní výšky)."""
+    t: list = field(default_factory=list)
+    x: list = field(default_factory=list)
+    z_tip: list = field(default_factory=list)
+    d: list = field(default_factory=list)
+    df: list = field(default_factory=list)
+    df_meas: list = field(default_factory=list)
+    crashed: bool = False
+    crash_index: int = None
+
+
+def constant_height_scan(surface_fn, v, force_fn, A, k_cant, f0, d_contact,
+                         dt, t_end, z_fixed, x0=0.0, t0=0.0, freq_noise=None,
+                         gap_noise=None, force_fn_xz=None, amp_noise=None):
+    """Sken v konstantní výšce: hrot jede v pevném z, regulátor je vypnutý.
+
+    Obdoba stm_sim.sim.constant_height_scan pro FM-AFM. Nic se neintegruje -
+    hrot jede rychlostí v podél x ve stále stejné výšce z_fixed a v každém
+    kroku se jen spočítá, jaké Δf by na té pozici bylo. Topografie se tím
+    promítne přímo do Δf, místo aby ji smyčka vykompenzovala pohybem hrotu.
+
+    Δf se počítá týmž vzorcem (rovnice 17.15) jako v run_loop(), takže oba
+    režimy popisují týž hrot a jdou vykreslit do jednoho grafu.
+
+    Pozor na rozdíl proti STM: Δf(d) je NEMONOTÓNNÍ (viz frequency_shift.py).
+    Při přiblížení k povrchu proto Δf nejdřív klesá, za minimem zase roste -
+    bez regulátoru jde hrot tím minimem projet, což se se zapnutou smyčkou
+    projeví jako ztráta stability. Tady se jen zaznamená průběh; kritérium
+    nárazu je stejné (d <= d_contact).
+
+    Args:
+        surface_fn: funkce h(x) -> výška povrchu [m].
+        v: rychlost pojezdu hrotu [m/s] (záporná = proti ose x).
+        force_fn: funkce F(r) -> síla hrot-vzorek [N].
+        A: amplituda oscilace cantileveru [m].
+        k_cant: tuhost cantileveru [N/m].
+        f0: rezonanční frekvence cantileveru [Hz].
+        d_contact: vzdálenost, při které se hlásí náraz [m].
+        dt: délka časového kroku [s].
+        t_end: konec skenu [s].
+        z_fixed: pevná výška hrotu [m] - jediný "ovladač" tohoto režimu.
+        x0: počáteční poloha x [m].
+        t0: počáteční čas pro záznam [s].
+        freq_noise: zdroj šumu měřeného Δf [Hz] se step(dt), nebo None.
+        gap_noise: zdroj šumu vzdálenosti [m] se step(dt), nebo None.
+        force_fn_xz: síla závislá i na x (řada bodových atomů), nebo None.
+        amp_noise: zdroj šumu amplitudy [m] se step(dt), nebo None.
+
+    Returns:
+        ConstantHeightResult. Chyba regulátoru se nezaznamenává - není co
+        regulovat.
+    """
+    result = ConstantHeightResult()
+
+    n_steps = int(t_end / dt)
+    for i in range(n_steps):
+        t_local = i * dt
+        t = t0 + t_local
+        x = x0 + v * t_local
+        h = surface_fn(x)
+        d = z_fixed - h
+        if gap_noise is not None:
+            d += gap_noise.step(dt)
+        A_krok = A if amp_noise is None else A + amp_noise.step(dt)
+        if force_fn_xz is None:
+            force_krok = force_fn
+        else:
+            force_krok = lambda z, x=x: force_fn_xz(x, z)
+        df = frequency_shift(d, A_krok, k_cant, f0, force_krok)
+        df_meas = df if freq_noise is None else df + freq_noise.step(dt)
+
+        result.t.append(t)
+        result.x.append(x)
+        result.z_tip.append(z_fixed)
+        result.d.append(d)
+        result.df.append(df)
+        result.df_meas.append(df_meas)
+
+        if d <= d_contact:
+            result.crashed = True
+            result.crash_index = i
+            break
+
+    return result

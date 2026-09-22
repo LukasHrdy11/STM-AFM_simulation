@@ -133,3 +133,70 @@ def fig_frekvence_kolem_udalosti(result, f0, label, n_okno=300):
     ax.legend()
     fig.tight_layout()
     return fig
+
+
+def fig_konstantni_vyska(result, surface_fn, df_set, d_contact, titulek="",
+                         atoms_row=None, result_smycka=None):
+    """Graf skenu s VYPNUTOU zpětnou vazbou (režim konstantní výšky).
+
+    Obdoba stm_sim.plotting.fig_konstantni_vyska pro AFM. Ukazuje, co se
+    se zapnutou smyčkou nevidí: topografie se promítne rovnou do Δf, místo
+    aby ji regulátor vykompenzoval pohybem hrotu.
+
+    Δf se na rozdíl od proudu u STM kreslí v lineární ose - není
+    exponenciální a navíc je záporná.
+
+    Args:
+        result: ConstantHeightResult z afm_sim.sim.constant_height_scan().
+        surface_fn: funkce h(x) -> výška povrchu [m].
+        df_set: Δf pracovního bodu [Hz] (referenční čára).
+        d_contact: vzdálenost, při které se hlásí náraz [m].
+        titulek: dodatek do titulku horního panelu.
+        atoms_row: AtomRow pro povrch "atoms-AFM", nebo None.
+        result_smycka: volitelný výsledek TÉHOŽ povrchu se zapnutou smyčkou,
+            vykreslený pro přímé srovnání obou režimů.
+
+    Returns:
+        matplotlib Figure (volající ji musí zavřít).
+    """
+    fig, axes = plt.subplots(3, 1, figsize=(7, 8))
+
+    axes[0].plot(_nm(result.x), _nm(result.z_tip),
+                 label="z_tip (konstantní výška)")
+    if result_smycka is not None:
+        axes[0].plot(_nm(result_smycka.x), _nm(result_smycka.z_tip),
+                     label="z_tip (se zpětnou vazbou)")
+    if atoms_row is not None:
+        axes[0].plot(atoms_row.x * 1e9, np.zeros(atoms_row.n), "ko",
+                     label="atomy (body)")
+    else:
+        h_curve = [surface_fn(x) for x in result.x]
+        axes[0].plot(_nm(result.x), _nm(h_curve), "--", label="h (povrch)")
+    axes[0].set_xlabel("x [nm]")
+    axes[0].set_ylabel("výška [nm]")
+    axes[0].set_title(f"Hrot stojí, povrch se mění ({titulek})" if titulek
+                      else "Hrot stojí, povrch se mění")
+    axes[0].legend()
+
+    axes[1].plot(_nm(result.x), result.df_meas, label="Δf (bez zpětné vazby)")
+    if result_smycka is not None:
+        axes[1].plot(_nm(result_smycka.x), result_smycka.df_meas,
+                     label="Δf (se zpětnou vazbou)")
+    axes[1].axhline(df_set, color="red", linestyle=":", label="df_set")
+    axes[1].set_xlabel("x [nm]")
+    axes[1].set_ylabel("Δf [Hz]")
+    axes[1].set_title("Δf kopíruje topografii")
+    axes[1].legend()
+
+    axes[2].plot(_nm(result.x), _nm(result.d), label="konstantní výška")
+    if result_smycka is not None:
+        axes[2].plot(_nm(result_smycka.x), _nm(result_smycka.d),
+                     label="se zpětnou vazbou")
+    axes[2].axhline(d_contact * 1e9, color="red", linestyle=":", label="d_contact")
+    axes[2].set_xlabel("x [nm]")
+    axes[2].set_ylabel("d [nm]")
+    axes[2].set_title("Vzdálenost hrot-vzorek (mean poloha)")
+    axes[2].legend()
+
+    fig.tight_layout()
+    return fig

@@ -55,7 +55,7 @@ V_SCAN = 65e-9        # m/s, rychlost pojezdu hrotu
 # -------------------------------- presety ----------------------------------
 
 PRESET_QPLUS = {
-    "popis": "Typický qPlus (nekalibrované odhady, měřený je jen šum)",
+    "popis": "Typický qPlus",
     "k_cant": K_CANT,
     "f0": F0,
     "A": A_OSC,

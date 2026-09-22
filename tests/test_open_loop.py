@@ -1,11 +1,10 @@
-"""Korektnostní test režimu bez zpětné vazby a krokovacího callbacku.
+"""Korektnostní test režimu bez zpětné vazby (STM i AFM) a krokování.
 
 Není to pytest test: skript vypíše [OK]/[SELHALO] pro každou kontrolu
 a na konci souhrn (stejně jako test_mge.py/test_sum.py).
 
-Kontroluje dvě nové věci ve stm_sim/sim.py, na kterých stojí interaktivní
-nástroj:
-- constant_height_scan(): sken s vypnutou smyčkou (režim konstantní výšky),
+Kontroluje věci, na kterých stojí interaktivní nástroj:
+- constant_height_scan() v stm_sim i afm_sim: sken s vypnutou smyčkou,
 - callback v run_loop(): krokování výpočtu, které NESMÍ měnit výsledek.
 """
 
@@ -134,6 +133,61 @@ def main():
     check("callback nese i mezikroky regulátoru (y) a novou polohu hrotu",
           stav["y"] is not None and stav["z_tip_novy"] == res_ref.z_tip[i_posl + 1],
           f"y = {stav['y']:.4e} m, z_tip_novy = {stav['z_tip_novy'] * 1e9:.4f} nm")
+
+    # --- 4. AFM: totéž pro FM-AFM -----------------------------------------
+    import run_simulation_afm as rsa
+    from afm_sim.frequency_shift import frequency_shift
+    from afm_sim.sim import constant_height_scan as ch_afm
+    from afm_sim.sim import run_loop as run_loop_afm
+
+    afm_povrch = lambda x: step_surface(x, X_EDGE, rsa.H)
+    t_end_afm = (X_EDGE + 2e-9) / rsa.v
+    spolecne_afm = dict(
+        surface_fn=afm_povrch, force_fn=rsa.force_fn, A=rsa.A,
+        k_cant=rsa.k_cant, f0=rsa.f0, d_contact=rsa.d_contact, dt=rsa.dt,
+        t_end=t_end_afm)
+
+    res_afm = ch_afm(v=rsa.v, z_fixed=rsa.d_set, **spolecne_afm)
+    check("AFM sken v konstantní výšce doběhl a hrot v něm stojí",
+          all(z == rsa.d_set for z in res_afm.z_tip),
+          f"z_fixed = {rsa.d_set * 1e9:.3f} nm, kroků = {len(res_afm.t)}")
+
+    # Δf musí sedět na tentýž vzorec, jaký používá smyčka (rovnice 17.15).
+    ocekavane_df = [frequency_shift(d, rsa.A, rsa.k_cant, rsa.f0, rsa.force_fn)
+                    for d in res_afm.d[::500]]
+    shoda = all(abs(a - b) <= 1e-12 * max(1.0, abs(b))
+                for a, b in zip(res_afm.df[::500], ocekavane_df))
+    check("AFM Δf(x) sedí na frequency_shift() (týž vzorec jako ve smyčce)",
+          shoda, f"prověřeno {len(ocekavane_df)} bodů, "
+          f"Δf rozsah {min(res_afm.df):.4f} .. {max(res_afm.df):.4f} Hz")
+
+    # Nad schodem se hrot přiblíží a Δf klesne (přitažlivá větev).
+    i_pred, i_za = 0, len(res_afm.df) - 1
+    check("AFM: za hranou je hrot blíž a Δf klesne",
+          res_afm.d[i_za] < res_afm.d[i_pred] and res_afm.df[i_za] < res_afm.df[i_pred],
+          f"d: {res_afm.d[i_pred] * 1e9:.3f} -> {res_afm.d[i_za] * 1e9:.3f} nm, "
+          f"Δf: {res_afm.df[i_pred]:.4f} -> {res_afm.df[i_za]:.4f} Hz")
+
+    # Bez regulátoru dojde na dost vysoké hraně k nárazu.
+    z_nizky = rsa.d_contact + rsa.H - 0.02e-9
+    res_afm_naraz = ch_afm(v=rsa.v, z_fixed=z_nizky, **spolecne_afm)
+    check("AFM: bez zpětné vazby dojde na hraně k nárazu",
+          res_afm_naraz.crashed,
+          f"z_fixed = {z_nizky * 1e9:.3f} nm, náraz v "
+          f"x = {res_afm_naraz.x[-1] * 1e9:.3f} nm")
+
+    # Se zapnutou smyčkou tatáž hrana projde (hrot uhne).
+    ctrl_afm = rsa.build_controller()
+    plant_afm = FirstOrderPlant(z0=rsa.d_set, T_sys=rsa.T_SYS)
+    df_set = frequency_shift(rsa.d_set, rsa.A, rsa.k_cant, rsa.f0, rsa.force_fn)
+    res_afm_smycka = run_loop_afm(controller=ctrl_afm, plant=plant_afm,
+                                  v=rsa.v, df_set=df_set, **spolecne_afm)
+    check("AFM: se zapnutou smyčkou se hrot nad hranou zvedne",
+          not res_afm_smycka.crashed
+          and max(res_afm_smycka.z_tip) - min(res_afm_smycka.z_tip) > 0.5 * rsa.H,
+          f"zdvih z_tip = "
+          f"{(max(res_afm_smycka.z_tip) - min(res_afm_smycka.z_tip)) * 1e9:.4f} nm, "
+          f"H = {rsa.H * 1e9:.3f} nm")
 
     print("\nVŠECHNY KONTROLY PROŠLY" if all(checks) else "\nNĚKTERÁ KONTROLA SELHALA")
 

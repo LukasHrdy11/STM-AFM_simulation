@@ -149,6 +149,12 @@ def main():
           open_loop["fwd"] is None and open_loop["konstantni_vyska"] is not None,
           f"kroků = {len(open_loop['konstantni_vyska'].t)}")
 
+    # --- 4b. AFM: režim bez zpětné vazby z panelu -------------------------
+    afm_open = spust_afm(zpetna_vazba=False)
+    check("AFM panel umí vypnout zpětnou vazbu (sken v konstantní výšce)",
+          afm_open["fwd"] is None and afm_open["konstantni_vyska"] is not None,
+          f"kroků = {len(afm_open['konstantni_vyska'].t)}")
+
     # --- 5. krokování ------------------------------------------------------
     from interactive.vypocet_stm import popis_kroku, posbirej_kroky
     vysledek, kroky = posbirej_kroky(pocet=10)
@@ -214,6 +220,17 @@ def main():
     z_fixed_w = najdi(stm_panel, ipw.FloatSlider, "z_hrot [nm]:")
     check("STM panel má posuvník pevné výšky hrotu", z_fixed_w is not None,
           f"rozsah {z_fixed_w.min}-{z_fixed_w.max} nm" if z_fixed_w else "chybí")
+    z_fixed_afm = najdi(afm_panel, ipw.FloatSlider, "z_hrot [nm]:")
+    vazba_afm = najdi(afm_panel, ipw.Checkbox, "zpětná vazba zapnutá")
+    check("AFM panel má přepínač vazby i posuvník pevné výšky",
+          z_fixed_afm is not None and vazba_afm is not None,
+          f"rozsah {z_fixed_afm.min}-{z_fixed_afm.max} nm"
+          if z_fixed_afm else "chybí")
+    if vazba_afm is not None and z_fixed_afm is not None:
+        vazba_afm.value = False
+        check("AFM: vypnutí vazby zpřístupní posuvník pevné výšky",
+              not z_fixed_afm.disabled, f"disabled = {z_fixed_afm.disabled}")
+        vazba_afm.value = True
     naraz = spust_stm(zpetna_vazba=False, surface="step",
                       z_fixed=0.30e-9, H=0.2e-9)
     check("Nízká pevná výška z rozsahu posuvníku vyrobí náraz",

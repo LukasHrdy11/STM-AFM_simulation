@@ -14,7 +14,9 @@ import matplotlib.pyplot as plt
 from IPython.display import clear_output, display
 
 from afm_sim import measured
-from afm_sim.plotting import fig_frekvence_kolem_udalosti, fig_prubehy
+from afm_sim.plotting import (
+    fig_frekvence_kolem_udalosti, fig_konstantni_vyska, fig_prubehy,
+)
 
 from .vypocet_afm import VYCHOZI, rezonancni_krivka, spust
 
@@ -59,6 +61,10 @@ def build_afm_panel():
                                description="šum amplitudy", indent=False)
     backward = w.Checkbox(value=VYCHOZI["backward"],
                           description="zpětný průjezd", indent=False)
+    zpetna_vazba = w.Checkbox(value=True, description="zpětná vazba zapnutá",
+                              indent=False)
+    # Pevná výška hrotu; má smysl jen s VYPNUTOU zpětnou vazbou.
+    z_fixed = posuvnik("z_hrot [nm]:", VYCHOZI["d_set"] * 1e9, 0.5, 2.0, 0.02)
 
     prepocitat = w.Button(description="Přepočítat", button_style="primary",
                           icon="refresh")
@@ -117,18 +123,20 @@ def build_afm_panel():
             sum_frekvence=sum_frekvence.value,
             sum_amplitudy=sum_amplitudy.value,
             backward=backward.value,
+            zpetna_vazba=zpetna_vazba.value,
+            z_fixed=z_fixed.value * 1e-9,
             Q=q_faktor.value,
         )
         return p
 
     def shrnuti(vysledek):
-        res = vysledek["fwd"]
+        res = vysledek["fwd"] or vysledek["konstantni_vyska"]
         d_min = min(res.d)
         rezerva = (d_min - vysledek["d_contact"]) * 1e12
         if res.crashed:
             return (f"<b style='color:#b00'>NÁRAZ</b> v x = "
                     f"{res.x[-1] * 1e9:.3f} nm.")
-        if res.unstable:
+        if getattr(res, "unstable", False):
             return ("<b style='color:#b00'>ZTRÁTA STABILITY</b> - hrot se "
                     "dostal za minimum Δf(d), citlivost změnila znaménko "
                     "a smyčka reguluje opačně. U režimu „local\" je to "
@@ -154,13 +162,26 @@ def build_afm_panel():
                 print("Graf se nepřekreslil, oprav nastavení výše.")
                 return
             stav["posledni"] = vysledek
-            fig = fig_prubehy(
-                result_fwd=vysledek["fwd"], surface_fn=vysledek["surface_fn"],
-                d_contact=vysledek["d_contact"], df_set=vysledek["df_set"],
-                result_bwd=vysledek["bwd"], atoms_row=vysledek["atoms_row"],
-                titulek=f"{p['controller']}, {p['surface']}, "
-                        f"citlivost {p['gain_mode']}",
-                overlay=stav["overlay"])
+            if vysledek["fwd"] is None:
+                # Zamknutá křivka ze smyčky (pozná se podle chyby regulátoru,
+                # kterou sken v konstantní výšce nemá) se vykreslí pro přímé
+                # srovnání obou režimů nad stejným povrchem.
+                zamknuta = stav["overlay"]
+                fig = fig_konstantni_vyska(
+                    result=vysledek["konstantni_vyska"],
+                    surface_fn=vysledek["surface_fn"],
+                    df_set=vysledek["df_set"], d_contact=vysledek["d_contact"],
+                    atoms_row=vysledek["atoms_row"],
+                    titulek=f"{p['surface']}, bez zpětné vazby",
+                    result_smycka=(zamknuta if hasattr(zamknuta, "e") else None))
+            else:
+                fig = fig_prubehy(
+                    result_fwd=vysledek["fwd"], surface_fn=vysledek["surface_fn"],
+                    d_contact=vysledek["d_contact"], df_set=vysledek["df_set"],
+                    result_bwd=vysledek["bwd"], atoms_row=vysledek["atoms_row"],
+                    titulek=f"{p['controller']}, {p['surface']}, "
+                            f"citlivost {p['gain_mode']}",
+                    overlay=stav["overlay"])
             display(fig)
             plt.close(fig)
         hlaseni.value = shrnuti(stav["posledni"])
@@ -171,6 +192,7 @@ def build_afm_panel():
             vysledek = stav["posledni"]
             for res, label in ((vysledek["fwd"], "forward"),
                                (vysledek["bwd"], "backward")):
+                # v režimu konstantní výšky je fwd None a cyklus se přeskočí
                 if res is None:
                     continue
                 fig_u = fig_frekvence_kolem_udalosti(res, p["f0"], label)
@@ -203,7 +225,8 @@ def build_afm_panel():
 
     def zamkni(_):
         if stav["posledni"] is not None:
-            stav["overlay"] = stav["posledni"]["fwd"]
+            stav["overlay"] = (stav["posledni"]["fwd"]
+                               or stav["posledni"]["konstantni_vyska"])
             prekresli()
 
     def uvolni(_):
@@ -212,7 +235,7 @@ def build_afm_panel():
 
     for ovladac in (regulator, povrch, gain_mode, d_set, amplituda,
                     tau, t_sys, rychlost, mira_sumu, sum_frekvence,
-                    sum_amplitudy, backward):
+                    sum_amplitudy, backward, zpetna_vazba, z_fixed):
         ovladac.observe(prekresli, names="value")
     preset.observe(nacti_preset, names="value")
     for ovladac in (q_faktor, df_posun, amplituda):
@@ -222,11 +245,21 @@ def build_afm_panel():
     uvolnit.on_click(uvolni)
 
     vlevo = w.VBox([preset, regulator, povrch, gain_mode,
-                    w.HBox([sum_frekvence, sum_amplitudy, backward]),
+                    w.HBox([sum_frekvence, sum_amplitudy]),
+                    w.HBox([backward, zpetna_vazba]),
                     w.HBox([prepocitat, zamknout, uvolnit])],
                    layout=w.Layout(width="440px", flex="0 0 auto"))
-    vpravo = w.VBox([d_set, amplituda, tau, t_sys, rychlost, mira_sumu],
+    vpravo = w.VBox([d_set, amplituda, tau, t_sys, rychlost, mira_sumu,
+                     z_fixed],
                     layout=w.Layout(width="420px", flex="0 0 auto"))
+
+    def prepni_rezim(_=None):
+        # Pevná výška má smysl jen bez smyčky, pracovní bod jen se smyčkou.
+        z_fixed.disabled = zpetna_vazba.value
+        for ovladac in (regulator, gain_mode, backward):
+            ovladac.disabled = not zpetna_vazba.value
+
+    zpetna_vazba.observe(prepni_rezim, names="value")
 
     def prepni_d_set(_=None):
         # U řady BODOVÝCH atomů si pracovní bod určuje vypocet_afm sám
@@ -238,6 +271,7 @@ def build_afm_panel():
 
     povrch.observe(prepni_d_set, names="value")
     prepni_d_set()
+    prepni_rezim()
     prekresli()
     prekresli_rezonanci()
 

@@ -15,7 +15,7 @@ import numpy as np
 
 from afm_sim import measured, noise
 from afm_sim.frequency_shift import frequency_shift, gain_from_tau, kappa_eff
-from afm_sim.sim import run_loop
+from afm_sim.sim import constant_height_scan, run_loop
 from afm_sim.tip_force import lj_force, r_min
 from afm_sim.tip_force_atoms import AtomRow
 from stm_sim.controller import (
@@ -29,6 +29,7 @@ VYCHOZI = dict(
     controller="PI",
     surface="atoms",
     gain_mode="fixed",      # "fixed" | "local" (local umí hlásit nestabilitu)
+    zpetna_vazba=True,      # False = režim konstantní výšky (open loop)
     backward=True,
     mera_sumu=1.0,          # násobek změřené velikosti šumu Δf i amplitudy
     seed=42,
@@ -149,7 +150,9 @@ def spust(parametry=None, **zmeny):
 
     Returns:
         Slovník: parametry, surface_fn, atoms_row, fwd, bwd (nebo None),
-        df_set, d_contact, t_end, dt.
+        konstantni_vyska (výsledek open-loop skenu, nebo None), df_set,
+        d_contact, t_end, dt. Pro p["zpetna_vazba"] = False se místo smyčky
+        počítá sken v konstantní výšce a klíč fwd je None.
 
     Raises:
         ValueError: když pracovní bod d_set leží před minimem Δf(d)
@@ -167,16 +170,30 @@ def spust(parametry=None, **zmeny):
     dt = p["tau"] / 100
     surface_fn = sestav_povrch(p)
     df_set = frequency_shift(d_set, p["A"], p["k_cant"], p["f0"], force_ref)
-    controller = sestav_regulator(p, force_ref, d_set, d_contact)
-    plant = FirstOrderPlant(z0=d_set, T_sys=p["T_SYS"])
     freq_noise, amp_noise = sestav_sum(p)
 
     spolecne = dict(
         surface_fn=surface_fn, force_fn=force_fn, A=p["A"], k_cant=p["k_cant"],
-        f0=p["f0"], df_set=df_set, d_contact=d_contact, dt=dt, t_end=t_end,
-        adaptive_tau=p["tau"] if p["gain_mode"] == "local" else None,
+        f0=p["f0"], d_contact=d_contact, dt=dt, t_end=t_end,
         freq_noise=freq_noise, gap_noise=None, force_fn_xz=force_fn_xz,
         amp_noise=amp_noise,
+    )
+
+    if not p["zpetna_vazba"]:
+        # Režim konstantní výšky: hrot stojí v z_fixed, regulátor nezasahuje.
+        # Výchozí výška je pracovní bod smyčky, aby šly oba režimy porovnat.
+        z_fixed = p.get("z_fixed", d_set)
+        ch = constant_height_scan(v=p["v"], z_fixed=z_fixed, x0=x0, **spolecne)
+        return {"parametry": p, "surface_fn": surface_fn, "atoms_row": atoms_row,
+                "fwd": None, "bwd": None, "konstantni_vyska": ch,
+                "df_set": df_set, "d_contact": d_contact, "d_set": d_set,
+                "t_end": t_end, "dt": dt}
+
+    controller = sestav_regulator(p, force_ref, d_set, d_contact)
+    plant = FirstOrderPlant(z0=d_set, T_sys=p["T_SYS"])
+    spolecne = dict(
+        spolecne, df_set=df_set,
+        adaptive_tau=p["tau"] if p["gain_mode"] == "local" else None,
     )
 
     fwd = run_loop(controller=controller, plant=plant, v=p["v"], x0=x0,
@@ -188,8 +205,8 @@ def spust(parametry=None, **zmeny):
                        x0=fwd.x[-1], t0=fwd.t[-1] + dt, **spolecne)
 
     return {"parametry": p, "surface_fn": surface_fn, "atoms_row": atoms_row,
-            "fwd": fwd, "bwd": bwd, "df_set": df_set, "d_contact": d_contact,
-            "d_set": d_set, "t_end": t_end, "dt": dt}
+            "fwd": fwd, "bwd": bwd, "konstantni_vyska": None, "df_set": df_set,
+            "d_contact": d_contact, "d_set": d_set, "t_end": t_end, "dt": dt}
 
 
 def rezonancni_krivka(p, df=0.0, n=601, sirka_q=8.0):
